@@ -19,9 +19,9 @@ pub struct MainProgram {
 pub struct Stmt {}
 
 #[derive(Debug, Clone)]
-pub struct Expr<'p> {
-    pub lhs: Term<'p>,
-    pub rhs: Option<(Operator, Term<'p>)>,
+pub enum Expr<'p> {
+    Value(Value<'p>),
+    OpExpr(Box<OpExpr<'p>>),
 }
 
 impl<'p> FromPest<'p> for Expr<'p> {
@@ -33,32 +33,60 @@ impl<'p> FromPest<'p> for Expr<'p> {
     ) -> Result<Self, ConversionError<Self::FatalError>> {
         pairs
             .peek()
-            .filter(|pair| pair.as_rule() == Rule::expr)
+            .filter(|pair| pair.as_rule() == Rule::expr || pair.as_rule() == Rule::op_term)
             .ok_or(::from_pest::ConversionError::NoMatch)?;
         let mut pairs = pairs.next().unwrap().into_inner();
-
-        let lhs = Term::from_pest(&mut pairs)?;
-        let rhs = match Operator::from_pest(&mut pairs) {
-            Ok(op) => Some((op, Term::from_pest(&mut pairs)?)),
-            Err(ConversionError::NoMatch) => None,
-            Err(err) => return Err(err),
-        };
-
-        Ok(Expr { lhs, rhs })
+        let pair = pairs.peek().unwrap();
+        Ok(match pair.as_rule() {
+            Rule::op_expr => Expr::OpExpr(box OpExpr::from_pest(&mut pairs)?),
+            Rule::value => Expr::Value(Value::from_pest(&mut pairs)?),
+            _ => return Err(ConversionError::NoMatch),
+        })
     }
 }
 
-#[derive(Debug, FromPest, Clone)]
-#[pest_ast(rule(Rule::expr_inner))]
-pub struct ExprInner<'p> {
-    pub val: Value<'p>,
+#[derive(Debug, Clone)]
+pub struct OpExpr<'p> {
+    pub lhs: Expr<'p>,
+    pub op: Operator,
+    pub rhs: Expr<'p>,
 }
 
-#[derive(Debug, FromPest, Clone)]
-#[pest_ast(rule(Rule::term))]
-pub enum Term<'p> {
-    Value(Value<'p>),
-    Expr(Box<Expr<'p>>),
+impl<'p> FromPest<'p> for OpExpr<'p> {
+    type Rule = Rule;
+    type FatalError = Void;
+
+    fn from_pest(
+        pairs: &mut Pairs<'p, Self::Rule>,
+    ) -> Result<Self, ConversionError<Self::FatalError>> {
+        pairs
+            .peek()
+            .filter(|pair| pair.as_rule() == Rule::op_expr)
+            .ok_or(::from_pest::ConversionError::NoMatch)?;
+        let mut pairs = pairs.next().unwrap().into_inner();
+
+        let lhs = Expr::from_pest(&mut pairs)?;
+        let op = Operator::from_pest(&mut pairs)?;
+
+        let mut rhs = Expr::from_pest(&mut pairs)?;
+
+        loop {
+            match Operator::from_pest(&mut pairs) {
+                Ok(op) => {
+                    let new_rhs = Expr::from_pest(&mut pairs)?;
+                    rhs = Expr::OpExpr(box OpExpr {
+                        lhs: rhs,
+                        op,
+                        rhs: new_rhs,
+                    });
+                }
+                Err(ConversionError::NoMatch) => break,
+                Err(err @ ConversionError::Malformed(_)) => return Err(err),
+            }
+        }
+
+        Ok(OpExpr { lhs, op, rhs })
+    }
 }
 
 #[derive(Debug, FromPest, Clone)]
@@ -95,14 +123,12 @@ impl<'p> FromPest<'p> for Params<'p> {
             match Expr::from_pest(pairs) {
                 Ok(expr) => {
                     params.push(expr);
-                },
+                }
                 Err(ConversionError::NoMatch) => break,
                 Err(err) => return Err(err),
             }
         }
-        Ok(Params {
-            params
-        })
+        Ok(Params { params })
     }
 }
 

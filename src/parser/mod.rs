@@ -68,32 +68,48 @@ mod tests {
     fn parse_params_test() {
         use from_pest::FromPest;
 
-        let source = String::from(r#"[1, 2 + 3,]"#);
+        let source = String::from(r#"[1, 0xf1,]"#);
         let mut parse_tree = Parser::parse(Rule::array, &source).unwrap();
         let ast = ast::Array::from_pest(&mut parse_tree).unwrap();
         let params = ast.params.params;
         assert!(matches!(
             params[0],
-            ast::Expr {
-                lhs: ast::Term::Value(ast::Value::Primitive(ast::PrimitiveValue::Integer(
-                    ast::Integer::Dec(ast::IntegerDec { val: 1 })
-                ))),
-                rhs: None
-            }
+            ast::Expr::Value(ast::Value::Primitive(ast::PrimitiveValue::Integer(
+                ast::Integer::Dec(ast::IntegerDec { val: 1 })
+            )))
         ));
         assert!(matches!(
             params[1],
-            ast::Expr {
-                lhs: ast::Term::Value(ast::Value::Primitive(ast::PrimitiveValue::Integer(
-                    ast::Integer::Dec(ast::IntegerDec { val: 2 })
+            ast::Expr::Value(ast::Value::Primitive(ast::PrimitiveValue::Integer(
+                ast::Integer::Hex(ast::IntegerHex { val: 241 })
+            )))
+        ));
+    }
+
+    #[test]
+    fn parse_op_expr_test() {
+        use from_pest::FromPest;
+
+        let source = String::from(r#"1 + (2 - 3)"#);
+        let mut parse_tree = Parser::parse(Rule::expr, &source).unwrap();
+        let ast = ast::Expr::from_pest(&mut parse_tree).unwrap();
+        assert!(matches!(
+            ast,
+            ast::Expr::OpExpr(box ast::OpExpr {
+                lhs: ast::Expr::Value(ast::Value::Primitive(ast::PrimitiveValue::Integer(
+                    ast::Integer::Dec(ast::IntegerDec { val: 1 })
                 ))),
-                rhs: Some((
-                    ast::Operator::Add(_),
-                    ast::Term::Value(ast::Value::Primitive(ast::PrimitiveValue::Integer(
+                op: ast::Operator::Add(_),
+                rhs: ast::Expr::OpExpr(box ast::OpExpr {
+                    lhs: ast::Expr::Value(ast::Value::Primitive(ast::PrimitiveValue::Integer(
+                        ast::Integer::Dec(ast::IntegerDec { val: 2 })
+                    ))),
+                    op: ast::Operator::Sub(_),
+                    rhs: ast::Expr::Value(ast::Value::Primitive(ast::PrimitiveValue::Integer(
                         ast::Integer::Dec(ast::IntegerDec { val: 3 })
                     )))
-                ))
-            }
+                })
+            })
         ));
     }
 }

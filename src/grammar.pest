@@ -4,8 +4,10 @@ stmt = { expr ~ ";" }
 
 expr_inner = _{ value }
 
-term = { expr_inner | "(" ~ expr ~ ")" }
-expr = { term ~ (operator ~ term)* }
+expr = { op_expr | expr_inner }
+
+op_term = { "(" ~ op_expr ~ ")" | expr_inner }
+op_expr = { (op_term ~ operator ~ op_term ) ~ (operator ~ op_term)* }
 
 value = {
     primitive_value
