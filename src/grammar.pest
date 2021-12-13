@@ -1,0 +1,88 @@
+main = { SOI ~ (stmt*) ~ EOI }
+
+stmt = { expr ~ ";" }
+
+expr_inner = _{ value }
+
+term = { expr_inner | "(" ~ expr ~ ")" }
+expr = { term ~ (operator ~ term)* }
+
+value = {
+    primitive_value
+    | string
+    | array
+    | tuple
+}
+
+primitive_value = {
+    char
+    | integer
+    | float
+}
+
+params = _{ (expr ~ ("," ~ expr)* ~ ","?)? }
+
+array = { "[" ~ params ~ "]" }
+
+tuple = { "(" ~ params ~ ")" }
+
+string = ${ PUSH("\"") ~ (escape | (!("\\" | "\"") ~ ANY)+)* ~ POP}
+
+char = ${
+    PUSH("'") ~ (escape | (!("\\" | "\"") ~ ANY)) ~ POP
+}
+
+escape = _{
+    "\\\\"
+    | "\\\""
+    | "\\'"
+    | "\\n"
+    | "\\r"
+    | "\\t"
+}
+
+// ops
+
+operator = {
+    op_add
+    | op_sub
+    | op_mul
+    | op_div
+    | op_mod
+    | op_pow
+    | op_xor
+}
+
+op_add = { "+" }
+op_sub = { "-" }
+op_mul = { "*" }
+op_div = { "/" }
+op_mod = { "%" }
+op_pow = { "**" }
+op_xor = { "^" }
+
+float = @{ (integer_dec ~ "." ~ ASCII_DIGIT+) }
+
+integer = ${
+    integer_hex
+    | integer_oct
+    | integer_bin
+    | integer_dec
+}
+
+integer_dec = { ("+" | "-")? ~ ASCII_DIGIT+ }
+
+integer_oct = { ("+" | "-")? ~ ^"0o" ~ ASCII_OCT_DIGIT+ }
+
+integer_hex = { ("+" | "-")? ~ ^"0x" ~ ASCII_HEX_DIGIT+ }
+
+integer_bin = { ("+" | "-")? ~ ^"0b" ~ ASCII_BIN_DIGIT+ }
+
+WHITESPACE = _{
+    " "
+    | "\t"
+    | WHITE_SPACE
+    | NEWLINE
+}
+
+COMMENT = _{ "//" ~ (!NEWLINE ~ ANY)* ~ NEWLINE? | "/*" ~ (!"*/" ~ ANY)* ~ "*/" }
