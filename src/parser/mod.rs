@@ -35,6 +35,18 @@ mod tests {
     }
 
     #[test]
+    fn parse_tuple_test() {
+        use from_pest::FromPest;
+
+        let source = String::from("(1,)");
+        let mut parse_tree = Parser::parse(Rule::tuple, &source).unwrap();
+        let ast = ast::Tuple::from_pest(&mut parse_tree).unwrap();
+        assert!(matches!(ast.params.0[0], ast::Expr::Value(ast::Value::Primitive(ast::PrimitiveValue::Integer(
+            ast::Integer::Dec(ast::IntegerDec { val: 1 })
+        )))));
+    }
+
+    #[test]
     fn parse_op_test() {
         use from_pest::FromPest;
 
@@ -65,13 +77,23 @@ mod tests {
     }
 
     #[test]
+    fn parse_ident_test() {
+        use from_pest::FromPest;
+
+        let source = String::from(r#"Hello_世界"#);
+        let mut parse_tree = Parser::parse(Rule::ident, &source).unwrap();
+        let ast = ast::Ident::from_pest(&mut parse_tree).unwrap();
+        assert_eq!(ast.0, "Hello_世界");
+    }
+
+    #[test]
     fn parse_params_test() {
         use from_pest::FromPest;
 
         let source = String::from(r#"[1, 0xf1,]"#);
         let mut parse_tree = Parser::parse(Rule::array, &source).unwrap();
         let ast = ast::Array::from_pest(&mut parse_tree).unwrap();
-        let params = ast.params.params;
+        let params = ast.params.0;
         assert!(matches!(
             params[0],
             ast::Expr::Value(ast::Value::Primitive(ast::PrimitiveValue::Integer(
@@ -111,5 +133,23 @@ mod tests {
                 })
             })
         ));
+    }
+
+    #[test]
+    fn parse_var_def_test() {
+        use from_pest::FromPest;
+
+        let source = String::from(r#"let pi = 3.14;"#);
+        let mut parse_tree = Parser::parse(Rule::var_def, &source).unwrap();
+        let ast = ast::VarDef::from_pest(&mut parse_tree).unwrap();
+        match ast {
+            ast::VarDef {
+                name: ast::Ident("pi"),
+                val: ast::Expr::Value(ast::Value::Primitive(ast::PrimitiveValue::Float(float))),
+            } => {
+                assert_eq!(float.val, 3.14)
+            }
+            _ => unreachable!("assert error"),
+        }
     }
 }

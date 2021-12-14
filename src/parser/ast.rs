@@ -90,6 +90,17 @@ impl<'p> FromPest<'p> for OpExpr<'p> {
 }
 
 #[derive(Debug, FromPest, Clone)]
+#[pest_ast(rule(Rule::var_def))]
+pub struct VarDef<'p> {
+    pub name: Ident<'p>,
+    pub val: Expr<'p>
+}
+
+#[derive(Debug, FromPest, Clone)]
+#[pest_ast(rule(Rule::ident))]
+pub struct Ident<'p>(#[pest_ast(outer(with(span_into_str)))] pub &'p str);
+
+#[derive(Debug, FromPest, Clone)]
 #[pest_ast(rule(Rule::value))]
 pub enum Value<'p> {
     Primitive(PrimitiveValue),
@@ -107,9 +118,7 @@ pub enum PrimitiveValue {
 }
 
 #[derive(Debug, Clone)]
-pub struct Params<'p> {
-    pub params: Vec<Expr<'p>>,
-}
+pub struct Params<'p>(pub Vec<Expr<'p>>);
 
 impl<'p> FromPest<'p> for Params<'p> {
     type Rule = Rule;
@@ -128,7 +137,7 @@ impl<'p> FromPest<'p> for Params<'p> {
                 Err(err) => return Err(err),
             }
         }
-        Ok(Params { params })
+        Ok(Params(params))
     }
 }
 

@@ -1,6 +1,6 @@
 main = { SOI ~ (stmt*) ~ EOI }
 
-stmt = { expr ~ ";" }
+stmt = { var_def | (expr ~ ";") }
 
 expr_inner = _{ value }
 
@@ -8,6 +8,11 @@ expr = { op_expr | expr_inner }
 
 op_term = { "(" ~ op_expr ~ ")" | expr_inner }
 op_expr = { (op_term ~ operator ~ op_term ) ~ (operator ~ op_term)* }
+
+var_def = { "let" ~ ident ~ "=" ~ expr ~ ";" }
+
+ident = { (!ASCII_DIGIT ~ ident_range) ~ ident_range* }
+ident_range = _{ XID_CONTINUE | XID_START }
 
 value = {
     primitive_value
@@ -18,15 +23,15 @@ value = {
 
 primitive_value = {
     char
-    | integer
     | float
+    | integer
 }
 
 params = _{ (expr ~ ("," ~ expr)* ~ ","?)? }
 
 array = { "[" ~ params ~ "]" }
 
-tuple = { "(" ~ params ~ ")" }
+tuple = { "(" ~ (expr ~ ("," ~ expr)+ | expr ~ ",")? ~ ")" }
 
 string = ${ PUSH("\"") ~ (escape | (!("\\" | "\"") ~ ANY)+)* ~ POP}
 
