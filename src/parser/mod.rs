@@ -41,9 +41,12 @@ mod tests {
         let source = String::from("(1,)");
         let mut parse_tree = Parser::parse(Rule::tuple, &source).unwrap();
         let ast = ast::Tuple::from_pest(&mut parse_tree).unwrap();
-        assert!(matches!(ast.params.0[0], ast::Expr::Value(ast::Value::Primitive(ast::PrimitiveValue::Integer(
-            ast::Integer::Dec(ast::IntegerDec { val: 1 })
-        )))));
+        assert!(matches!(
+            ast.params.0[0],
+            ast::Expr::Value(ast::Value::Primitive(ast::PrimitiveValue::Integer(
+                ast::Integer::Dec(ast::IntegerDec { val: 1 })
+            )))
+        ));
     }
 
     #[test]
@@ -149,7 +152,48 @@ mod tests {
             } => {
                 assert_eq!(float.val, 3.14)
             }
-            _ => unreachable!("assert error"),
+            _ => assert!(false),
+        }
+    }
+
+    #[test]
+    fn parse_fn_def_test() {
+        use from_pest::FromPest;
+
+        let source = String::from(r#"fn sum(a, b: int) int { a + b }"#);
+        let mut parse_tree = Parser::parse(Rule::func_def, &source).unwrap();
+        let ast = ast::FuncDef::from_pest(&mut parse_tree).unwrap();
+        match &ast {
+            ast::FuncDef {
+                name: ast::Ident("sum"),
+                params: ast::FuncDefParams(params), // A
+                ret_type: ast::Type::Int(_),
+                body:
+                    ast::FuncDefBody {
+                        stmts: _,
+                        ret:
+                            Some(ast::Expr::OpExpr(box ast::OpExpr {
+                                lhs: ast::Expr::Ident(ast::Ident("a")),
+                                op: ast::Operator::Add(_),
+                                rhs: ast::Expr::Ident(ast::Ident("b")),
+                            })),
+                    },
+            } => {
+                assert!(matches!(
+                    params.as_slice(),
+                    [
+                        ast::FuncDefParam {
+                            name: ast::Ident("a"),
+                            ty: ast::Type::Int(_)
+                        },
+                        ast::FuncDefParam {
+                            name: ast::Ident("b"),
+                            ty: ast::Type::Int(_)
+                        },
+                    ]
+                ))
+            }
+            _ => assert!(false),
         }
     }
 }

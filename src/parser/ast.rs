@@ -10,17 +10,21 @@ use super::Rule;
 
 #[derive(Debug, FromPest)]
 #[pest_ast(rule(Rule::main))]
-pub struct MainProgram {
-    pub stmts: Vec<Stmt>,
+pub struct MainProgram<'p> {
+    pub stmts: Vec<Stmt<'p>>,
 }
 
 #[derive(Debug, FromPest, Clone)]
 #[pest_ast(rule(Rule::stmt))]
-pub struct Stmt {}
+pub enum Stmt<'p> {
+    VarDef(VarDef<'p>),
+    Expr(Expr<'p>),
+}
 
 #[derive(Debug, Clone)]
 pub enum Expr<'p> {
     Value(Value<'p>),
+    Ident(Ident<'p>),
     OpExpr(Box<OpExpr<'p>>),
 }
 
@@ -40,6 +44,7 @@ impl<'p> FromPest<'p> for Expr<'p> {
         Ok(match pair.as_rule() {
             Rule::op_expr => Expr::OpExpr(box OpExpr::from_pest(&mut pairs)?),
             Rule::value => Expr::Value(Value::from_pest(&mut pairs)?),
+            Rule::ident => Expr::Ident(Ident::from_pest(&mut pairs)?),
             _ => return Err(ConversionError::NoMatch),
         })
     }
@@ -90,13 +95,95 @@ impl<'p> FromPest<'p> for OpExpr<'p> {
 }
 
 #[derive(Debug, FromPest, Clone)]
-#[pest_ast(rule(Rule::var_def))]
-pub struct VarDef<'p> {
+#[pest_ast(rule(Rule::func_def))]
+pub struct FuncDef<'p> {
     pub name: Ident<'p>,
-    pub val: Expr<'p>
+    pub params: FuncDefParams<'p>,
+    pub ret_type: Type,
+    pub body: FuncDefBody<'p>,
 }
 
 #[derive(Debug, FromPest, Clone)]
+#[pest_ast(rule(Rule::func_def_body))]
+pub struct FuncDefBody<'p> {
+    pub stmts: Vec<Stmt<'p>>,
+    pub ret: Option<Expr<'p>>,
+}
+
+#[derive(Debug, Clone)]
+pub struct FuncDefParam<'p> {
+    pub name: Ident<'p>,
+    pub ty: Type,
+}
+
+#[derive(Debug, Clone)]
+pub struct FuncDefParams<'p>(pub Vec<FuncDefParam<'p>>);
+
+impl<'p> FromPest<'p> for FuncDefParams<'p> {
+    type Rule = Rule;
+    type FatalError = Void;
+
+    fn from_pest(
+        pairs: &mut Pairs<'p, Self::Rule>,
+    ) -> Result<Self, ConversionError<Self::FatalError>> {
+        pairs
+            .peek()
+            .filter(|pair| pair.as_rule() == Rule::func_def_params)
+            .ok_or(::from_pest::ConversionError::NoMatch)?;
+        let mut pairs = pairs.next().unwrap().into_inner();
+        let mut params = Vec::with_capacity(3);
+        let mut ids = Vec::with_capacity(3);
+        loop {
+            let next = if let Some(next) = pairs.peek() {
+                next
+            } else {
+                break;
+            };
+            match next.as_rule() {
+                Rule::_type => {
+                    let ty = Type::from_pest(&mut pairs)?;
+                    params.extend(ids.iter().map(|id| FuncDefParam { name: *id, ty }));
+                    ids.clear();
+                }
+                Rule::ident => {
+                    let id = Ident::from_pest(&mut pairs)?;
+                    ids.push(id);
+                }
+                _ => unreachable!(),
+            }
+        }
+        Ok(FuncDefParams(params))
+    }
+}
+
+#[derive(Debug, FromPest, Clone)]
+#[pest_ast(rule(Rule::var_def))]
+pub struct VarDef<'p> {
+    pub name: Ident<'p>,
+    pub val: Expr<'p>,
+}
+
+#[derive(Debug, FromPest, Copy, Clone)]
+#[pest_ast(rule(Rule::_type))]
+pub enum Type {
+    Int(IntType),
+    Float(FloatType),
+    Char(CharType),
+}
+
+#[derive(Debug, FromPest, Copy, Clone)]
+#[pest_ast(rule(Rule::int_type))]
+pub struct IntType;
+
+#[derive(Debug, FromPest, Copy, Clone)]
+#[pest_ast(rule(Rule::float_type))]
+pub struct FloatType;
+
+#[derive(Debug, FromPest, Copy, Clone)]
+#[pest_ast(rule(Rule::char_type))]
+pub struct CharType;
+
+#[derive(Debug, FromPest, Copy, Clone)]
 #[pest_ast(rule(Rule::ident))]
 pub struct Ident<'p>(#[pest_ast(outer(with(span_into_str)))] pub &'p str);
 
