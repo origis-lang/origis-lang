@@ -1,6 +1,8 @@
-main = { SOI ~ (stmt*) ~ EOI }
+module = { SOI ~ (definition*) }
 
-stmt = { var_def | (expr ~ ";") }
+definition = { func_def }
+
+stmt = { var_def | definition | (expr ~ ";") }
 
 expr_inner = _{ value | ident }
 
@@ -9,25 +11,32 @@ expr = { op_expr | expr_inner }
 op_term = { "(" ~ op_expr ~ ")" | expr_inner }
 op_expr = { (op_term ~ operator ~ op_term ) ~ (operator ~ op_term)* }
 
-var_def = { ^"let" ~ ident ~ "=" ~ expr ~ ";" }
+var_def = { ^"let" ~ ident ~ ":" ~ _type ~ "=" ~ expr ~ ";" }
 
 func_def = { ^"fn" ~ ident ~ "(" ~ func_def_params ~ ")" ~ _type ~ "{" ~ func_def_body ~ "}" }
 func_def_param = _{ ident ~ ("," ~ ident)* ~ ":" ~ _type }
 func_def_params = { (func_def_param ~ (func_def_param ~ ",")* ~ ","?)? }
 func_def_body = { stmt* ~ expr? }
 
+func_call = { ident ~ "(" ~ func_call_args? ~ ")" }
+func_call_args = { expr ~ ("," ~ expr)* ~ ","? }
+
 ident = ${ (!ASCII_DIGIT ~ ident_range) ~ ident_range* }
 ident_range = _{ !WHITESPACE ~ (XID_CONTINUE | XID_START) }
 
 _type = {
-    int_type
+    unit_type
+    | int_type
     | float_type
     | char_type
+    | custom_type
 }
 
+unit_type = { "()" }
 int_type = { ^"int" }
 float_type = { ^"float" }
 char_type = { ^"char" }
+custom_type = ${ ident }
 
 value = {
     primitive_value
@@ -46,7 +55,7 @@ params = _{ (expr ~ ("," ~ expr)* ~ ","?)? }
 
 array = { "[" ~ params ~ "]" }
 
-tuple = { "(" ~ (expr ~ ("," ~ expr)+ | expr ~ ",")? ~ ")" }
+tuple = { "(" ~ (expr ~ ("," ~ expr)+ | expr ~ ",") ~ ")" }
 
 string = ${ PUSH("\"") ~ (escape | (!("\\" | "\"") ~ ANY)+)* ~ POP}
 

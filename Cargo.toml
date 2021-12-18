@@ -10,3 +10,11 @@ pest = "2"
 pest_derive = "2.1.0"
 pest-ast = "0.3.3"
 from-pest = "0.3.1"
+
+inkwell = { git = "https://github.com/TheDan64/inkwell", features = ["llvm13-0"], optional = true }
+
+fnv = "1.0.7"
+compact_str = "0.2.0"
+
+[features]
+jit = ["inkwell"]

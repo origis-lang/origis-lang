@@ -1,6 +1,7 @@
 use std::num::ParseIntError;
 use std::str::FromStr;
 
+use compact_str::CompactStr;
 use from_pest::pest::iterators::Pairs;
 use from_pest::pest::Span;
 use from_pest::{ConversionError, FromPest, Void};
@@ -8,27 +9,34 @@ use pest_ast::FromPest;
 
 use super::Rule;
 
-#[derive(Debug, FromPest)]
-#[pest_ast(rule(Rule::main))]
-pub struct MainProgram<'p> {
-    pub stmts: Vec<Stmt<'p>>,
+#[derive(Debug, FromPest, Clone)]
+#[pest_ast(rule(Rule::module))]
+pub struct Module {
+    pub defs: Vec<Definition>,
+}
+
+#[derive(Debug, FromPest, Clone)]
+#[pest_ast(rule(Rule::definition))]
+pub enum Definition {
+    FuncDef(FuncDef),
 }
 
 #[derive(Debug, FromPest, Clone)]
 #[pest_ast(rule(Rule::stmt))]
-pub enum Stmt<'p> {
-    VarDef(VarDef<'p>),
-    Expr(Expr<'p>),
+pub enum Stmt {
+    VarDef(VarDef),
+    Definition(Definition),
+    Expr(Expr),
 }
 
 #[derive(Debug, Clone)]
-pub enum Expr<'p> {
-    Value(Value<'p>),
-    Ident(Ident<'p>),
-    OpExpr(Box<OpExpr<'p>>),
+pub enum Expr {
+    Value(Value),
+    Ident(Ident),
+    OpExpr(Box<OpExpr>),
 }
 
-impl<'p> FromPest<'p> for Expr<'p> {
+impl<'p> FromPest<'p> for Expr {
     type Rule = Rule;
     type FatalError = Void;
 
@@ -51,13 +59,13 @@ impl<'p> FromPest<'p> for Expr<'p> {
 }
 
 #[derive(Debug, Clone)]
-pub struct OpExpr<'p> {
-    pub lhs: Expr<'p>,
+pub struct OpExpr {
+    pub lhs: Expr,
     pub op: Operator,
-    pub rhs: Expr<'p>,
+    pub rhs: Expr,
 }
 
-impl<'p> FromPest<'p> for OpExpr<'p> {
+impl<'p> FromPest<'p> for OpExpr {
     type Rule = Rule;
     type FatalError = Void;
 
@@ -96,30 +104,30 @@ impl<'p> FromPest<'p> for OpExpr<'p> {
 
 #[derive(Debug, FromPest, Clone)]
 #[pest_ast(rule(Rule::func_def))]
-pub struct FuncDef<'p> {
-    pub name: Ident<'p>,
-    pub params: FuncDefParams<'p>,
+pub struct FuncDef {
+    pub name: Ident,
+    pub params: FuncDefParams,
     pub ret_type: Type,
-    pub body: FuncDefBody<'p>,
+    pub body: FuncDefBody,
 }
 
 #[derive(Debug, FromPest, Clone)]
 #[pest_ast(rule(Rule::func_def_body))]
-pub struct FuncDefBody<'p> {
-    pub stmts: Vec<Stmt<'p>>,
-    pub ret: Option<Expr<'p>>,
+pub struct FuncDefBody {
+    pub stmts: Vec<Stmt>,
+    pub ret: Option<Expr>,
 }
 
 #[derive(Debug, Clone)]
-pub struct FuncDefParam<'p> {
-    pub name: Ident<'p>,
+pub struct FuncDefParam {
+    pub name: Ident,
     pub ty: Type,
 }
 
 #[derive(Debug, Clone)]
-pub struct FuncDefParams<'p>(pub Vec<FuncDefParam<'p>>);
+pub struct FuncDefParams(pub Vec<FuncDefParam>);
 
-impl<'p> FromPest<'p> for FuncDefParams<'p> {
+impl<'p> FromPest<'p> for FuncDefParams {
     type Rule = Rule;
     type FatalError = Void;
 
@@ -142,7 +150,10 @@ impl<'p> FromPest<'p> for FuncDefParams<'p> {
             match next.as_rule() {
                 Rule::_type => {
                     let ty = Type::from_pest(&mut pairs)?;
-                    params.extend(ids.iter().map(|id| FuncDefParam { name: *id, ty }));
+                    params.extend(ids.iter().map(|id| FuncDefParam {
+                        name: Ident::clone(id),
+                        ty: ty.clone(),
+                    }));
                     ids.clear();
                 }
                 Rule::ident => {
@@ -157,19 +168,41 @@ impl<'p> FromPest<'p> for FuncDefParams<'p> {
 }
 
 #[derive(Debug, FromPest, Clone)]
-#[pest_ast(rule(Rule::var_def))]
-pub struct VarDef<'p> {
-    pub name: Ident<'p>,
-    pub val: Expr<'p>,
+#[pest_ast(rule(Rule::func_call))]
+pub struct FuncCall {
+    pub name: Ident,
+    pub args: FuncCallArgs,
 }
 
-#[derive(Debug, FromPest, Copy, Clone)]
+#[derive(Debug, FromPest, Clone)]
+#[pest_ast(rule(Rule::func_call_args))]
+pub struct FuncCallArgs(pub Vec<Expr>);
+
+#[derive(Debug, FromPest, Clone)]
+#[pest_ast(rule(Rule::var_def))]
+pub struct VarDef {
+    pub name: Ident,
+    pub ty: Type,
+    pub val: Expr,
+}
+
+#[derive(Debug, FromPest, Clone)]
 #[pest_ast(rule(Rule::_type))]
 pub enum Type {
+    Unit(UnitType),
     Int(IntType),
     Float(FloatType),
     Char(CharType),
+    Custom(CustomType),
 }
+
+#[derive(Debug, FromPest, Clone)]
+#[pest_ast(rule(Rule::custom_type))]
+pub struct CustomType(pub Ident);
+
+#[derive(Debug, FromPest, Copy, Clone)]
+#[pest_ast(rule(Rule::unit_type))]
+pub struct UnitType;
 
 #[derive(Debug, FromPest, Copy, Clone)]
 #[pest_ast(rule(Rule::int_type))]
@@ -183,17 +216,17 @@ pub struct FloatType;
 #[pest_ast(rule(Rule::char_type))]
 pub struct CharType;
 
-#[derive(Debug, FromPest, Copy, Clone)]
+#[derive(Debug, FromPest, Clone)]
 #[pest_ast(rule(Rule::ident))]
-pub struct Ident<'p>(#[pest_ast(outer(with(span_into_str)))] pub &'p str);
+pub struct Ident(#[pest_ast(outer(with(span_into_str), with(str_to_compact_str)))] pub CompactStr);
 
 #[derive(Debug, FromPest, Clone)]
 #[pest_ast(rule(Rule::value))]
-pub enum Value<'p> {
+pub enum Value {
     Primitive(PrimitiveValue),
-    String(StringLiteral<'p>),
-    Array(Array<'p>),
-    Tuple(Tuple<'p>),
+    String(StringLiteral),
+    Array(Array),
+    Tuple(Tuple),
 }
 
 #[derive(Debug, FromPest, Copy, Clone)]
@@ -205,9 +238,9 @@ pub enum PrimitiveValue {
 }
 
 #[derive(Debug, Clone)]
-pub struct Params<'p>(pub Vec<Expr<'p>>);
+pub struct Params(pub Vec<Expr>);
 
-impl<'p> FromPest<'p> for Params<'p> {
+impl<'p> FromPest<'p> for Params {
     type Rule = Rule;
     type FatalError = Void;
 
@@ -230,21 +263,21 @@ impl<'p> FromPest<'p> for Params<'p> {
 
 #[derive(Debug, FromPest, Clone)]
 #[pest_ast(rule(Rule::tuple))]
-pub struct Tuple<'p> {
-    pub params: Params<'p>,
+pub struct Tuple {
+    pub params: Params,
 }
 
 #[derive(Debug, FromPest, Clone)]
 #[pest_ast(rule(Rule::array))]
-pub struct Array<'p> {
-    pub params: Params<'p>,
+pub struct Array {
+    pub params: Params,
 }
 
-#[derive(Debug, FromPest, Copy, Clone)]
+#[derive(Debug, FromPest, Clone)]
 #[pest_ast(rule(Rule::string))]
-pub struct StringLiteral<'p> {
-    #[pest_ast(outer(with(span_into_str), with(str_to_str_lit)))]
-    pub val: &'p str,
+pub struct StringLiteral {
+    #[pest_ast(outer(with(span_into_str), with(str_to_str_lit), with(str_to_compact_str)))]
+    pub val: CompactStr,
 }
 
 fn str_to_str_lit(s: &str) -> &str {
@@ -370,6 +403,10 @@ pub struct IntegerHex {
 
 fn hex_str_to_int(s: &str) -> Result<i64, ParseIntError> {
     i64::from_str_radix(&s[2..], 16)
+}
+
+fn str_to_compact_str(s: &str) -> CompactStr {
+    CompactStr::from(s)
 }
 
 fn span_into_str(span: Span) -> &str {
