@@ -15,6 +15,35 @@ inkwell = { git = "https://github.com/TheDan64/inkwell", features = ["llvm13-0"]
 
 fnv = "1.0.7"
 compact_str = "0.2.0"
+thiserror = "1.0"
+smallvec = { version = "1.7.0", features = ["union", "const_generics", "const_new"] }
+itertools = "0.10.3"
+rust-embed = { version = "6.3.0", features = ["compression", "include-exclude"] }
+phf = { version = "0.10.0", features = ["macros"] }
+snmalloc-rs = { version = "0.2.28", features = ["cache-friendly", "native-cpu"] }
+
+gc = { version = "0.4", features = ["derive", "nightly"] }
+
+pprof = { version = "0.6.1", features = ["flamegraph", "criterion"], optional = true }
 
 [features]
 jit = ["inkwell"]
+prof = ["pprof"]
+
+[dev-dependencies]
+criterion = "0.3"
+
+[build-dependencies]
+phf_codegen = "0.10.0"
+itertools = "0.10.3"
+
+[[bench]]
+name = "parser"
+harness = false
+
+[[bench]]
+name = "interp"
+harness = false
+
+[profile.bench]
+lto = "fat"

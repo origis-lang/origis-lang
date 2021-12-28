@@ -1,15 +1,22 @@
 module = { SOI ~ (definition*) }
 
-definition = { func_def }
+definition = { use_def | func_def }
 
 stmt = { var_def | definition | (expr ~ ";") }
 
-expr_inner = _{ value | ident }
+expr_inner = _{ if_expr | func_call | value | ident }
 
 expr = { op_expr | expr_inner }
 
 op_term = { "(" ~ op_expr ~ ")" | expr_inner }
 op_expr = { (op_term ~ operator ~ op_term ) ~ (operator ~ op_term)* }
+
+if_expr = { "if" ~ expr ~ "{" ~ func_def_body ~ "}" ~ else_if* ~ _else? }
+else_if = { "else" ~ "if" ~ expr ~ "{" ~ func_def_body ~ "}"  }
+_else = { "else" ~ "{" ~ func_def_body ~ "}" }
+
+use_def = { "use" ~ module_path ~ ";" }
+module_path = ${ ident ~ ("::" ~ ident)* }
 
 var_def = { ^"let" ~ ident ~ ":" ~ _type ~ "=" ~ expr ~ ";" }
 
@@ -18,8 +25,8 @@ func_def_param = _{ ident ~ ("," ~ ident)* ~ ":" ~ _type }
 func_def_params = { (func_def_param ~ (func_def_param ~ ",")* ~ ","?)? }
 func_def_body = { stmt* ~ expr? }
 
-func_call = { ident ~ "(" ~ func_call_args? ~ ")" }
-func_call_args = { expr ~ ("," ~ expr)* ~ ","? }
+func_call = { ident ~ "(" ~ func_call_args ~ ")" }
+func_call_args = { (expr ~ ("," ~ expr)*)* ~ ","? }
 
 ident = ${ (!ASCII_DIGIT ~ ident_range) ~ ident_range* }
 ident_range = _{ !WHITESPACE ~ (XID_CONTINUE | XID_START) }
@@ -29,6 +36,7 @@ _type = {
     | int_type
     | float_type
     | char_type
+    | bool_type
     | custom_type
 }
 
@@ -36,6 +44,7 @@ unit_type = { "()" }
 int_type = { ^"int" }
 float_type = { ^"float" }
 char_type = { ^"char" }
+bool_type = { ^"bool" }
 custom_type = ${ ident }
 
 value = {
@@ -49,6 +58,7 @@ primitive_value = {
     char
     | float
     | integer
+    | boolean
 }
 
 params = _{ (expr ~ ("," ~ expr)* ~ ","?)? }
@@ -75,22 +85,40 @@ escape = _{
 // ops
 
 operator = {
-    op_add
+    op_not_eq
+    | op_pow
+    | op_eq
+    | op_less_or_eq
+    | op_greater_or_eq
+    | op_add_assign
+
+    | op_add
     | op_sub
     | op_mul
     | op_div
-    | op_mod
-    | op_pow
     | op_xor
+    | op_less
+    | op_greater
+    | op_rem
 }
 
 op_add = { "+" }
 op_sub = { "-" }
 op_mul = { "*" }
 op_div = { "/" }
-op_mod = { "%" }
-op_pow = { "**" }
 op_xor = { "^" }
+op_less = { "<" }
+op_greater = { ">" }
+op_rem = { "%" }
+
+op_pow = { "**" }
+op_eq = { "==" }
+op_not_eq = { "!=" }
+op_less_or_eq = { "<=" }
+op_greater_or_eq = { ">=" }
+op_add_assign = { "+=" }
+
+boolean = { ^"true" | ^"false" }
 
 float = @{ (integer_dec ~ "." ~ ASCII_DIGIT+) }
 
