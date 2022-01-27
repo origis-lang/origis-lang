@@ -1,14 +1,6 @@
-#![feature(box_syntax)]
-#![feature(box_patterns)]
-#![feature(try_find)]
 #![allow(dead_code)]
 
-pub mod interpreter;
-#[cfg(feature = "jit")]
-pub mod jit;
-pub mod parser;
-
-mod stdlib;
+mod parser;
 
 #[global_allocator]
 static ALLOC: snmalloc_rs::SnMalloc = snmalloc_rs::SnMalloc;
