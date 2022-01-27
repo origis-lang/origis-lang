@@ -1,4 +1,5 @@
 use std::ops::Range;
+use crate::parser::lexer::{Lexer, UnexpectedEndError};
 
 #[allow(clippy::upper_case_acronyms)]
 #[derive(Debug, Copy, Clone, PartialEq)]
@@ -126,7 +127,6 @@ pub enum TokenInner<'s> {
     KeywordFn,
     KeywordStruct,
     KeywordEnum,
-    KeywordPub,
 
     KeywordFor,
     KeywordLoop,
@@ -139,6 +139,8 @@ pub enum TokenInner<'s> {
 
     KeywordSelf,
     KeywordSuper,
+    KeywordPub,
+    KeywordUse,
 }
 
 #[derive(Debug, Copy, Clone, PartialEq)]
@@ -205,6 +207,27 @@ impl From<Range<usize>> for TokenRange {
     }
 }
 
+pub struct TokenStream<'s> {
+    pub lexer: Lexer<'s>
+}
+
+impl<'s> Iterator for TokenStream<'s> {
+    type Item = Result<Token<'s>, UnexpectedEndError>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match self.lexer.next_token() {
+            Err(err) => Some(Err(err)),
+            Ok(token) => {
+                if matches!(token.inner, TokenInner::EOF) {
+                    None
+                } else {
+                    Some(Ok(token))
+                }
+            }
+        }
+    }
+}
+
 pub const KEYWORDS: phf::Map<&'static str, TokenInner<'static>> = phf::phf_map! {
     "true" => TokenInner::LitBoolean(true),
     "false" => TokenInner::LitBoolean(false),
@@ -223,7 +246,6 @@ pub const KEYWORDS: phf::Map<&'static str, TokenInner<'static>> = phf::phf_map! 
     "fn" => TokenInner::KeywordFn,
     "struct" => TokenInner::KeywordStruct,
     "enum" => TokenInner::KeywordEnum,
-    "pub" => TokenInner::KeywordPub,
 
     "for" => TokenInner::KeywordFor,
     "loop" => TokenInner::KeywordLoop,
@@ -236,4 +258,6 @@ pub const KEYWORDS: phf::Map<&'static str, TokenInner<'static>> = phf::phf_map! 
 
     "self" => TokenInner::KeywordSelf,
     "super" => TokenInner::KeywordSuper,
+    "pub" => TokenInner::KeywordPub,
+    "use" => TokenInner::KeywordUse,
 };
