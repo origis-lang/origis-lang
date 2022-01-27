@@ -1,14 +1,14 @@
 use std::ops::Range;
-use crate::parser::lexer::{Lexer, UnexpectedEndError};
+use crate::parser::lexer::Lexer;
 
 #[allow(clippy::upper_case_acronyms)]
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub enum TokenInner<'s> {
     EOF,
-    UnexpectedEnd(&'static str),
 
     Comment(&'s str),
     Ident(&'s str),
+    Mark(&'s str),
 
     // literal
     LitInteger(i64),
@@ -76,6 +76,8 @@ pub enum TokenInner<'s> {
     SymbolDot,
     /// `?`
     SymbolQues,
+    /// `'`
+    SymbolSigQuote,
 
     /// `&&`
     SymbolAnd,
@@ -168,16 +170,6 @@ impl<'s> Token<'s> {
         }
     }
 
-    pub fn unexpected_end(
-        range: TokenRange,
-        expect: &'static str,
-    ) -> Self {
-        Token {
-            inner: TokenInner::UnexpectedEnd(expect),
-            range,
-        }
-    }
-
     pub fn is_eof(&self) -> bool {
         matches!(self.inner, TokenInner::EOF)
     }
@@ -212,18 +204,15 @@ pub struct TokenStream<'s> {
 }
 
 impl<'s> Iterator for TokenStream<'s> {
-    type Item = Result<Token<'s>, UnexpectedEndError>;
+    type Item = Token<'s>;
 
     fn next(&mut self) -> Option<Self::Item> {
         match self.lexer.next_token() {
-            Err(err) => Some(Err(err)),
-            Ok(token) => {
-                if matches!(token.inner, TokenInner::EOF) {
-                    None
-                } else {
-                    Some(Ok(token))
-                }
-            }
+            Token {
+                inner: TokenInner::EOF,
+                ..
+            } => None,
+            token @ _ => Some(token)
         }
     }
 }

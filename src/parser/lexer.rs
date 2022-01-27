@@ -1,11 +1,7 @@
-use std::fmt::{Display, Formatter};
 use std::iter::Peekable;
 use std::str::CharIndices;
 
-use crate::parser::token::{Token, TokenInner, TokenRange, KEYWORDS};
-
-#[derive(Debug, Copy, Clone)]
-pub struct UnexpectedEndError(TokenRange, &'static str);
+use crate::parser::token::{Token, TokenInner, KEYWORDS};
 
 pub struct Lexer<'s> {
     source: &'s str,
@@ -14,10 +10,10 @@ pub struct Lexer<'s> {
 }
 
 impl<'s> Lexer<'s> {
-    pub fn from_source(s: &'s str) -> Self {
+    pub fn from_source(src: &'s str) -> Self {
         Lexer {
-            char_indices: s.char_indices().peekable(),
-            source: s,
+            char_indices: src.char_indices().peekable(),
+            source: src,
             current: (0, '\x00'),
         }
     }
@@ -40,24 +36,12 @@ impl<'s> Lexer<'s> {
         self.current.1
     }
 
-    pub fn next_token(
-        &mut self,
-    ) -> Result<Token<'s>, UnexpectedEndError> {
-        match self.next_token_unchecked() {
-            Token {
-                inner: TokenInner::UnexpectedEnd(expect),
-                range,
-            } => Err(UnexpectedEndError(range, expect)),
-            token @ _ => Ok(token),
-        }
-    }
-
-    pub fn next_token_unchecked(&mut self) -> Token<'s> {
+    pub fn next_token(&mut self) -> Token<'s> {
         if let Some(ch) = self.next_char() {
             match ch {
                 '/' => self.lex_comment_or_slash(),
                 '"' => self.lex_str(),
-                '\'' => self.lex_char(),
+                '\'' => self.lex_char_or_mark(),
 
                 ch if ch.is_ascii_lowercase() => {
                     self.lex_ident_or_keyword()
@@ -67,7 +51,7 @@ impl<'s> Lexer<'s> {
                 ch if is_special_symbols(ch) => self.lex_symbol(),
                 ch if ch.is_whitespace() => {
                     self.skip_whitespace();
-                    self.next_token_unchecked()
+                    self.next_token()
                 }
                 _ => self.lex_ident(),
             }
@@ -195,51 +179,54 @@ impl<'s> Lexer<'s> {
         Token::new(token, self.current_pos(), self.current_pos())
     }
 
-    pub fn lex_char(&mut self) -> Token<'s> {
+    pub fn lex_char_or_mark(&mut self) -> Token<'s> {
         let start = self.current_pos();
 
         if let Some(ch) = self.next_char() {
             let c = if ch == '\'' { '\x00' } else { ch };
 
-            if let Some('\'') = self.next_char() {
+            return if let Some('\'') = self.peek_char() {
+                self.next_char();
                 let end = self.current_pos();
-                return Token::new(
-                    TokenInner::LitChar(c),
+                Token::new(TokenInner::LitChar(c), start, end)
+            } else {
+                while let Some(ch) = self.peek_char() {
+                    if identifier_boundary(ch) {
+                        break;
+                    } else {
+                        self.next_char();
+                    }
+                }
+                let end = self.current_pos();
+                Token::new(
+                    TokenInner::Mark(&self.source[start + 1..=end]),
                     start,
                     end,
-                );
-            }
+                )
+            };
         }
 
-        Token::unexpected_end(
-            (self.current_pos()..self.current_pos()).into(),
-            "'",
-        )
+        Token::new(TokenInner::SymbolSigQuote, start, start)
     }
 
     pub fn lex_str(&mut self) -> Token<'s> {
         let start = self.current_pos();
 
-        loop {
-            if let Some(ch) = self.next_char() {
-                if ch == '"' {
-                    break;
-                } else if ch == '\\' {
-                    if let Some('"') = self.peek_char() {
-                        self.next_char();
-                    }
+        let mut offset = 0;
+        while let Some(ch) = self.next_char() {
+            if ch == '"' {
+                offset = 1;
+                break;
+            } else if ch == '\\' {
+                if let Some('"') = self.peek_char() {
+                    self.next_char();
                 }
-            } else {
-                return Token::unexpected_end(
-                    (self.current_pos()..self.current_pos()).into(),
-                    "\"",
-                );
             }
         }
 
         let end = self.current_pos();
         Token::new(
-            TokenInner::LitStr(&self.source[start + 1..end]),
+            TokenInner::LitStr(&self.source[start + 1..=end - offset]),
             start,
             end,
         )
@@ -406,30 +393,20 @@ impl<'s> Lexer<'s> {
                 '*' => {
                     self.next_char();
                     self.next_char();
-                    loop {
-                        if let Some(ch) = self.next_char() {
-                            if ch == '*'
-                                && matches!(
-                                    self.peek_char(),
-                                    Some('/')
-                                )
-                            {
-                                self.next_char();
-                                break;
-                            }
-                        } else {
-                            return Token::unexpected_end(
-                                (self.current_pos()
-                                    ..self.current_pos())
-                                    .into(),
-                                "*/",
-                            );
+                    let mut offset = 0;
+                    while let Some(ch) = self.next_char() {
+                        if ch == '*'
+                            && matches!(self.peek_char(), Some('/'))
+                        {
+                            self.next_char();
+                            offset = 2;
+                            break;
                         }
                     }
                     let end = self.current_pos();
                     Token::new(
                         TokenInner::Comment(
-                            &self.source[start + 2..=end - 2],
+                            &self.source[start + 2..=end - offset],
                         ),
                         start,
                         end,
@@ -533,14 +510,6 @@ fn is_special_symbols(ch: char) -> bool {
     )
 }
 
-impl std::error::Error for UnexpectedEndError {}
-
-impl Display for UnexpectedEndError {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Debug::fmt(self, f)
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use crate::parser::lexer::Lexer;
@@ -551,16 +520,16 @@ mod tests {
         let mut lexer =
             Lexer::from_source("// abc\n/*def*/ /*unclosed comment*");
         assert_eq!(
-            lexer.next_token_unchecked().inner(),
+            lexer.next_token().inner(),
             TokenInner::Comment(" abc")
         );
         assert_eq!(
-            lexer.next_token_unchecked().inner(),
+            lexer.next_token().inner(),
             TokenInner::Comment("def")
         );
         assert_eq!(
-            lexer.next_token_unchecked().inner(),
-            TokenInner::UnexpectedEnd("*/")
+            lexer.next_token().inner(),
+            TokenInner::Comment("unclosed comment*")
         );
     }
 
@@ -568,11 +537,11 @@ mod tests {
     fn ident() {
         let mut lexer = Lexer::from_source("foo bar");
         assert_eq!(
-            lexer.next_token_unchecked().inner(),
+            lexer.next_token().inner(),
             TokenInner::Ident("foo")
         );
         assert_eq!(
-            lexer.next_token_unchecked().inner(),
+            lexer.next_token().inner(),
             TokenInner::Ident("bar")
         );
     }
@@ -581,19 +550,19 @@ mod tests {
     fn integer() {
         let mut lexer = Lexer::from_source("114514 0xff 0o10 0b1010");
         assert_eq!(
-            lexer.next_token_unchecked().inner(),
+            lexer.next_token().inner(),
             TokenInner::LitInteger(114514)
         );
         assert_eq!(
-            lexer.next_token_unchecked().inner(),
+            lexer.next_token().inner(),
             TokenInner::LitInteger(255)
         );
         assert_eq!(
-            lexer.next_token_unchecked().inner(),
+            lexer.next_token().inner(),
             TokenInner::LitInteger(8)
         );
         assert_eq!(
-            lexer.next_token_unchecked().inner(),
+            lexer.next_token().inner(),
             TokenInner::LitInteger(10)
         );
     }
@@ -602,15 +571,15 @@ mod tests {
     fn float() {
         let mut lexer = Lexer::from_source("114.514 7.823E5 1.2e-4");
         assert_eq!(
-            lexer.next_token_unchecked().inner(),
+            lexer.next_token().inner(),
             TokenInner::LitFloat(114.514)
         );
         assert_eq!(
-            lexer.next_token_unchecked().inner(),
+            lexer.next_token().inner(),
             TokenInner::LitFloat(782300f64)
         );
         assert_eq!(
-            lexer.next_token_unchecked().inner(),
+            lexer.next_token().inner(),
             TokenInner::LitFloat(0.00012)
         );
     }
@@ -621,12 +590,12 @@ mod tests {
             "\"hello wo\\\"r\\\"ld\" \"unclosed string",
         );
         assert_eq!(
-            lexer.next_token_unchecked().inner(),
+            lexer.next_token().inner(),
             TokenInner::LitStr(r#"hello wo\"r\"ld"#)
         );
         assert_eq!(
-            lexer.next_token_unchecked().inner(),
-            TokenInner::UnexpectedEnd("\"")
+            lexer.next_token().inner(),
+            TokenInner::LitStr(r#"unclosed string"#)
         );
     }
 
@@ -634,28 +603,25 @@ mod tests {
     fn char() {
         let mut lexer = Lexer::from_source("'\\' '\n' \'u");
         assert_eq!(
-            lexer.next_token_unchecked().inner(),
+            lexer.next_token().inner(),
             TokenInner::LitChar('\\')
         );
         assert_eq!(
-            lexer.next_token_unchecked().inner(),
+            lexer.next_token().inner(),
             TokenInner::LitChar('\n')
         );
-        assert_eq!(
-            lexer.next_token_unchecked().inner(),
-            TokenInner::UnexpectedEnd("'")
-        );
+        assert_eq!(lexer.next_token().inner(), TokenInner::Mark("u"));
     }
 
     #[test]
     fn boolean() {
         let mut lexer = Lexer::from_source("true false");
         assert_eq!(
-            lexer.next_token_unchecked().inner(),
+            lexer.next_token().inner(),
             TokenInner::LitBoolean(true)
         );
         assert_eq!(
-            lexer.next_token_unchecked().inner(),
+            lexer.next_token().inner(),
             TokenInner::LitBoolean(false)
         );
     }
@@ -664,32 +630,29 @@ mod tests {
     fn keyword() {
         let mut lexer = Lexer::from_source("char async fn");
         assert_eq!(
-            lexer.next_token_unchecked().inner(),
+            lexer.next_token().inner(),
             TokenInner::KeywordChar
         );
         assert_eq!(
-            lexer.next_token_unchecked().inner(),
+            lexer.next_token().inner(),
             TokenInner::KeywordAsync
         );
-        assert_eq!(
-            lexer.next_token_unchecked().inner(),
-            TokenInner::KeywordFn
-        );
+        assert_eq!(lexer.next_token().inner(), TokenInner::KeywordFn);
     }
 
     #[test]
     fn symbol() {
         let mut lexer = Lexer::from_source("$ -> <=");
         assert_eq!(
-            lexer.next_token_unchecked().inner(),
+            lexer.next_token().inner(),
             TokenInner::SymbolDollar
         );
         assert_eq!(
-            lexer.next_token_unchecked().inner(),
+            lexer.next_token().inner(),
             TokenInner::SymbolRArrow
         );
         assert_eq!(
-            lexer.next_token_unchecked().inner(),
+            lexer.next_token().inner(),
             TokenInner::SymbolLtEq
         );
     }
