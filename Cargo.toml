@@ -17,11 +17,27 @@ snmalloc-rs = { version = "0.2.28", features = ["cache-friendly", "native-cpu"] 
 
 gc = { version = "0.4", features = ["derive", "nightly"] }
 
-pprof = { version = "0.6.1", features = ["flamegraph", "criterion"], optional = true }
+anyhow = "1"
+ahash = "0.7.6"
+cfg-if = "1.0.0"
+walkdir = "2.3.2"
+
+inkwell = { git = "https://github.com/TheDan64/inkwell", branch = "master", features = ["llvm13-0"], optional = true }
+
+wasm-encoder = { version = "0.9.0", optional = true }
+wasmprinter = { version = "0.2", optional = true }
+wasmparser = { version = "0.82", optional = true }
+wasmtime = { version = "0.33", optional = true }
+tokio = { version = "1", features = ["full"], optional = true }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["full"] }
 
 [features]
-prof = ["pprof"]
-
+llvm = ["inkwell"]
+wasm_compile = ["wasm-encoder", "wasmprinter", "wasmparser"]
+wasm64 = []
+wasm_rt = ["wasm_compile", "wasmtime", "tokio"]
 
 [[bench]]
 name = "parser"

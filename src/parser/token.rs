@@ -1,5 +1,5 @@
-use std::ops::Range;
 use crate::parser::lexer::Lexer;
+use std::ops::Range;
 
 #[allow(clippy::upper_case_acronyms)]
 #[derive(Debug, Copy, Clone, PartialEq)]
@@ -107,6 +107,10 @@ pub enum TokenInner<'s> {
     SymbolLtEq,
     /// `>=`
     SymbolGtEq,
+    /// `<<`
+    SymbolDoubleLt,
+    /// `>>`
+    SymbolDoubleGt,
     /// `<-`
     SymbolLArrow,
     /// `->`
@@ -118,13 +122,17 @@ pub enum TokenInner<'s> {
     KeywordBool,
     KeywordInt,
     KeywordFloat,
-    KeywordStr,
     KeywordChar,
+    KeywordRef,
+    KeywordFunc,
+    KeywordVoid,
     KeywordArray,
 
     KeywordAsync,
     KeywordAwait,
     KeywordProc,
+
+    KeywordUnreachable,
 
     KeywordFn,
     KeywordStruct,
@@ -200,19 +208,19 @@ impl From<Range<usize>> for TokenRange {
 }
 
 pub struct TokenStream<'s> {
-    pub lexer: Lexer<'s>
+    pub lexer: Lexer<'s>,
 }
 
 impl<'s> Iterator for TokenStream<'s> {
     type Item = Token<'s>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        match self.lexer.next_token() {
-            Token {
-                inner: TokenInner::EOF,
-                ..
-            } => None,
-            token @ _ => Some(token)
+        let tok = self.lexer.next_token();
+        // Block comments
+        if let TokenInner::Comment(_) = tok.inner {
+            self.next()
+        } else {
+            Some(tok)
         }
     }
 }
@@ -222,15 +230,19 @@ pub const KEYWORDS: phf::Map<&'static str, TokenInner<'static>> = phf::phf_map! 
     "false" => TokenInner::LitBoolean(false),
 
     "bool" => TokenInner::KeywordBool,
-    "string" => TokenInner::KeywordStr,
     "int" => TokenInner::KeywordInt,
     "float" => TokenInner::KeywordFloat,
     "char" => TokenInner::KeywordChar,
+    "ref" => TokenInner::KeywordRef,
+    "func" => TokenInner::KeywordFunc,
+    "void" => TokenInner::KeywordVoid,
     "array" => TokenInner::KeywordArray,
 
     "async" => TokenInner::KeywordAsync,
     "await" => TokenInner::KeywordAwait,
     "proc" => TokenInner::KeywordProc,
+
+    "unreachable" => TokenInner::KeywordUnreachable,
 
     "fn" => TokenInner::KeywordFn,
     "struct" => TokenInner::KeywordStruct,

@@ -136,11 +136,15 @@ impl<'s> Lexer<'s> {
                 &[
                     ('=', TokenInner::SymbolLtEq),
                     ('-', TokenInner::SymbolLArrow),
+                    ('<', TokenInner::SymbolDoubleLt),
                 ],
                 TokenInner::SymbolLt,
             ),
             '>' => self.lex_consecutive_symbol(
-                &[('=', TokenInner::SymbolGtEq)],
+                &[
+                    ('=', TokenInner::SymbolGtEq),
+                    ('>', TokenInner::SymbolDoubleGt),
+                ],
                 TokenInner::SymbolGt,
             ),
             ',' => self.lex_single_symbol(TokenInner::SymbolComma),
@@ -226,7 +230,9 @@ impl<'s> Lexer<'s> {
 
         let end = self.current_pos();
         Token::new(
-            TokenInner::LitStr(&self.source[start + 1..=end - offset]),
+            TokenInner::LitStr(
+                &self.source[start + 1..=end - offset],
+            ),
             start,
             end,
         )
