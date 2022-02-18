@@ -2,4 +2,4 @@ mod analyzer;
 mod scope;
 pub mod typed_ast;
 
-pub use analyzer::{Analyzer, Typed};
+pub use analyzer::{Analyzer, Imports, Typed};

@@ -1,8 +1,8 @@
 use crate::analyze::typed_ast::{Block, FlowControl, Stmt};
 use crate::wasm::compile::expr::compile_expr;
 use crate::wasm::compiler::Compiler;
-use wasm_encoder::{Function, Instruction};
 use crate::wasm::scope::Scope;
+use wasm_encoder::{Function, Instruction};
 
 pub fn compile_block(
     compiler: &mut Compiler,
@@ -32,20 +32,20 @@ pub fn compile_stmt(
             FlowControl::Break(i) => {
                 let depth = match compiler.scope.current_mut() {
                     Scope::Global { .. } => unreachable!(),
-                    Scope::Local { if_depth, .. } => {
-                        *if_depth
-                    }
+                    Scope::Local { if_depth, .. } => *if_depth,
                 };
-                func.instruction(&Instruction::Br(*i as u32 * 2 + 1 + depth));
+                func.instruction(&Instruction::Br(
+                    *i as u32 * 2 + 1 + depth,
+                ));
             }
             FlowControl::Continue(i) => {
                 let depth = match compiler.scope.current_mut() {
                     Scope::Global { .. } => unreachable!(),
-                    Scope::Local { if_depth, .. } => {
-                        *if_depth
-                    }
+                    Scope::Local { if_depth, .. } => *if_depth,
                 };
-                func.instruction(&Instruction::Br(*i as u32 * 2 + depth));
+                func.instruction(&Instruction::Br(
+                    *i as u32 * 2 + depth,
+                ));
             }
         },
         Stmt::Assign(id, ty, expr) => {

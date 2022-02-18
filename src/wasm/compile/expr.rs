@@ -57,7 +57,8 @@ pub fn compile_expr(
                     compile_expr(compiler, func, br_cond)?;
                     compiler.scope.current_mut().entry_if();
                     func.instruction(&Instruction::If(
-                        br_block.return_type()
+                        br_block
+                            .return_type()
                             .to_wasm_type()
                             .map(|ty| BlockType::Result(ty))
                             .unwrap_or_else(|| BlockType::Empty),
@@ -123,6 +124,35 @@ pub fn compile_expr(
                 lhs.return_type(),
                 rhs.return_type(),
             )?
+        }
+        Expr::Convert(expr, ty) => {
+            compile_expr(compiler, func, expr)?;
+            match (expr.return_type(), ty) {
+                (Type::Int, Type::Int)
+                | (Type::Float, Type::Float)
+                | (Type::Bool, Type::Bool)
+                | (Type::Char, Type::Char) => {}
+                (Type::Int, Type::Float) => {
+                    func.instruction(&Instruction::F64ConvertI64S);
+                }
+                (Type::Int, Type::Char) => {
+                    func.instruction(&Instruction::I32WrapI64);
+                }
+                (Type::Int, Type::Bool) => {
+                    func.instruction(&Instruction::I64Eqz);
+                    func.instruction(&Instruction::I64Eqz);
+                }
+                (Type::Bool, Type::Int) => {
+                    func.instruction(&Instruction::I64ExtendI32S);
+                }
+                (Type::Float, Type::Int) => {
+                    func.instruction(&Instruction::I64TruncF64S);
+                }
+                (Type::Char, Type::Int) => {}
+                _ => {
+                    anyhow::bail!("only primitive type conversions can be performed")
+                }
+            }
         }
     }
     Ok(())

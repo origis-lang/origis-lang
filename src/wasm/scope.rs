@@ -65,15 +65,19 @@ impl Scope {
                     if !symbols.contains_key(&name) {
                         let idx = *local_idx;
                         *local_idx += 1;
-                        symbols
-                            .insert(name, Symbol::Variable { idx, ty });
+                        symbols.insert(
+                            name,
+                            Symbol::Variable { idx, ty },
+                        );
                         idx
                     } else {
                         symbols.get(&name).unwrap().idx()
                     }
                 }
             },
-            Scope::Local { symbols, local_idx, .. } => match ty {
+            Scope::Local {
+                symbols, local_idx, ..
+            } => match ty {
                 Type::Func(func) => {
                     todo!()
                 }
@@ -90,8 +94,10 @@ impl Scope {
                     if !symbols.contains_key(&name) {
                         let idx = *local_idx;
                         *local_idx += 1;
-                        symbols
-                            .insert(name, Symbol::Variable { idx, ty });
+                        symbols.insert(
+                            name,
+                            Symbol::Variable { idx, ty },
+                        );
                         idx
                     } else {
                         symbols.get(&name).unwrap().idx()
@@ -111,18 +117,14 @@ impl Scope {
     pub fn entry_if(&mut self) {
         match self {
             Scope::Global { .. } => unreachable!(),
-            Scope::Local { if_depth, .. } => {
-                *if_depth += 1
-            }
+            Scope::Local { if_depth, .. } => *if_depth += 1,
         }
     }
 
     pub fn exit_if(&mut self) {
         match self {
             Scope::Global { .. } => unreachable!(),
-            Scope::Local { if_depth, .. } => {
-                *if_depth -= 1
-            }
+            Scope::Local { if_depth, .. } => *if_depth -= 1,
         }
     }
 }

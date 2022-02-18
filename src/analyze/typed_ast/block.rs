@@ -13,7 +13,7 @@ impl Typed for Block {
     fn return_type(&self) -> Type {
         match self.stmts.last() {
             Some(Stmt::ImplicitReturn(expr)) => expr.return_type(),
-            _ => Type::Void
+            _ => Type::Void,
         }
     }
 }

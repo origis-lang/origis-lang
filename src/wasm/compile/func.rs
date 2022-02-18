@@ -1,7 +1,7 @@
 use smallvec::SmallVec;
 use wasm_encoder::{Export, Function, Instruction};
 
-use crate::analyze::typed_ast::{FnDecl, FuncType, Type};
+use crate::analyze::typed_ast::{FnDecl, Type};
 use crate::wasm::compile::block::compile_block;
 use crate::wasm::compiler::Compiler;
 
@@ -9,24 +9,17 @@ pub fn compile_function(
     compiler: &mut Compiler,
     fn_decl: &FnDecl,
 ) -> anyhow::Result<()> {
-    let params = fn_decl
-        .params
-        .iter()
-        .map(|(_, ty)| ty.clone())
-        .collect::<Vec<_>>();
-    let ret = &fn_decl.ret_type;
-    let idx = compiler.scope.current_mut().set_symbol(
-        fn_decl.name.0.clone(),
-        Type::Func(FuncType {
-            params,
-            ret: box ret.clone(),
-        }),
-    );
+    let idx = compiler
+        .scope
+        .current_mut()
+        .set_symbol(fn_decl.name.0.clone(), fn_decl.to_type());
 
-    compiler
-        .wasm_module
-        .export
-        .export(&fn_decl.name.0, Export::Function(idx));
+    if fn_decl.vis {
+        compiler
+            .wasm_module
+            .export
+            .export(&fn_decl.name.0, Export::Function(idx));
+    }
 
     compiler.scope.entry();
 
@@ -43,11 +36,11 @@ pub fn compile_function(
         })
         .collect::<SmallVec<[_; 5]>>();
 
-    let results = if let Some(ty) = ret.to_wasm_type() {
-        SmallVec::from([ty])
-    } else {
-        SmallVec::new_const()
-    };
+    let results = fn_decl
+        .ret_type
+        .to_wasm_type()
+        .map(|ty| SmallVec::from([ty]))
+        .unwrap_or(SmallVec::new_const());
     compiler
         .wasm_module
         ._type

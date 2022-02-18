@@ -1,7 +1,10 @@
-use std::env::current_dir;
+use std::cell::RefCell;
 use std::fs::read_to_string;
-use std::path::{Path, PathBuf};
+use std::path::Path;
+use std::rc::Rc;
 
+use ahash::AHashMap;
+use compact_str::CompactStr;
 use smallvec::SmallVec;
 
 use crate::analyze::scope::{Scope, ScopeStack};
@@ -11,32 +14,33 @@ use crate::analyze::typed_ast::{
 };
 use crate::parser::{parse, Parser};
 
+pub type Imports = Rc<RefCell<AHashMap<CompactStr, Module>>>;
+
 pub struct Analyzer {
     source: String,
-    import_root: PathBuf,
     scope: ScopeStack,
+
+    pub imports: Imports,
 }
 
 impl Analyzer {
-    pub fn from_source(source: String, import_root: PathBuf) -> Self {
+    pub fn from_source(source: String, imports: Imports) -> Self {
         Analyzer {
             source,
-            import_root,
+            imports,
             scope: ScopeStack::new(),
         }
     }
 
-    pub fn from_file<P>(file: P) -> anyhow::Result<Self>
+    pub fn from_file<P>(
+        file: P,
+        imports: Imports,
+    ) -> anyhow::Result<Self>
     where
         P: AsRef<Path>,
     {
         let source = read_to_string(file.as_ref())?;
-        let root = if let Some(path) = file.as_ref().parent() {
-            path.to_path_buf()
-        } else {
-            current_dir()?
-        };
-        Ok(Analyzer::from_source(source, root))
+        Ok(Analyzer::from_source(source, imports))
     }
 
     pub fn analyze(&mut self) -> anyhow::Result<Module> {
@@ -56,7 +60,11 @@ impl Analyzer {
             decls: module
                 .decls
                 .into_iter()
-                .map(|decl| self.analyze_decl(decl))
+                .filter_map(|decl| match self.analyze_decl(decl) {
+                    Err(err) => Some(Err(err)),
+                    Ok(None) => None,
+                    Ok(decl) => decl.map(Ok),
+                })
                 .collect::<anyhow::Result<_>>()?,
         })
     }
@@ -64,7 +72,7 @@ impl Analyzer {
     pub fn analyze_decl(
         &mut self,
         decl: parse::decl::Decl,
-    ) -> anyhow::Result<Decl> {
+    ) -> anyhow::Result<Option<Decl>> {
         match decl {
             parse::decl::Decl::FnDecl(decl) => {
                 let name: Ident = decl.name.to_str().into();
@@ -103,19 +111,86 @@ impl Analyzer {
                 let body = self.analyze_block(decl.body)?;
                 self.scope.exit();
 
-                Ok(Decl::FnDecl(FnDecl {
+                Ok(Some(Decl::FnDecl(FnDecl {
                     vis: decl.vis,
                     name,
                     params,
                     ret_type,
                     body,
-                }))
+                })))
             }
             parse::decl::Decl::StructDecl(_) => {
                 todo!()
             }
-            parse::decl::Decl::Import(_) => {
-                todo!()
+            parse::decl::Decl::Import(mut path) => {
+                let name: CompactStr = path
+                    .segment
+                    .pop()
+                    .ok_or_else(|| {
+                        anyhow::anyhow!("empty module path")
+                    })?
+                    .to_str()
+                    .into();
+                let path = path
+                    .segment
+                    .into_iter()
+                    .map(|id| id.to_str().into())
+                    .collect::<SmallVec<[CompactStr; 3]>>();
+                let path = if path.is_empty() {
+                    name.clone()
+                } else {
+                    path.join("::").into()
+                };
+                let module = if let Some(m) =
+                    self.imports.borrow().get(&path)
+                {
+                    m.clone()
+                } else {
+                    anyhow::bail!("module not found: {}", path)
+                };
+
+                let export =
+                    module.get_export(&name).ok_or_else(|| {
+                        anyhow::anyhow!(
+                            "{} not found in {}",
+                            &name,
+                            &path
+                        )
+                    })?;
+
+                match export {
+                    Decl::FnDecl(fn_decl) => {
+                        self.scope.current_mut().set_symbol(
+                            Ident(name.clone()),
+                            fn_decl.to_type(),
+                        )
+                    }
+                    Decl::Import(_, _) => {}
+                }
+
+                Ok(Some(Decl::Import(path, box export.clone())))
+            }
+            parse::decl::Decl::Attribute(mut attr) => {
+                match attr.name.to_str() {
+                    "import" => {
+                        let path = attr.values.pop().expect_str()?;
+                        let name = attr.values.pop().expect_str()?;
+                        if !self.imports.borrow().contains_key(&name)
+                        {
+                            let mut analyzer = Analyzer::from_file(
+                                &*path,
+                                self.imports.clone(),
+                            )?;
+                            self.imports
+                                .borrow_mut()
+                                .insert(name, analyzer.analyze()?);
+                        }
+                        Ok(None)
+                    }
+                    other => {
+                        anyhow::bail!("unknown attribute: {}", other)
+                    }
+                }
             }
         }
     }
@@ -246,6 +321,10 @@ impl Analyzer {
                     }
                 })
             }
+            parse::expr::Expr::Convert(expr, ty) => Expr::Convert(
+                box self.analyze_expr(*expr)?,
+                self.analyze_type(ty)?,
+            ),
             parse::expr::Expr::Ident(id) => Expr::Ident(
                 self.scope.get_symbol(id.to_str())?.1.clone(),
             ),
@@ -289,7 +368,8 @@ impl Analyzer {
                             self.analyze_block(*block)?,
                         ))
                     })
-                    .collect::<anyhow::Result<Vec<(Expr, Block)>>>()?;
+                    .collect::<anyhow::Result<Vec<(Expr, Block)>>>(
+                    )?;
                 let _else = if let Some(block) = _else {
                     Some(box self.analyze_block(*block)?)
                 } else {
@@ -372,5 +452,22 @@ where
 {
     fn return_type(&self) -> Type {
         T::return_type(self)
+    }
+}
+
+trait ExpectLiteral {
+    fn expect_str(self) -> anyhow::Result<CompactStr>;
+}
+
+impl ExpectLiteral for Option<parse::expr::LiteralExpr<'_>> {
+    fn expect_str(self) -> anyhow::Result<CompactStr> {
+        match self.ok_or_else(|| {
+            anyhow::anyhow!("expected a literal str but None")
+        })? {
+            parse::expr::LiteralExpr::String(str) => Ok(str.into()),
+            other => {
+                anyhow::bail!("expected a literal str but {other:?}")
+            }
+        }
     }
 }

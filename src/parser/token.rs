@@ -128,6 +128,8 @@ pub enum TokenInner<'s> {
     KeywordVoid,
     KeywordArray,
 
+    KeywordAs,
+
     KeywordAsync,
     KeywordAwait,
     KeywordProc,
@@ -237,6 +239,8 @@ pub const KEYWORDS: phf::Map<&'static str, TokenInner<'static>> = phf::phf_map! 
     "func" => TokenInner::KeywordFunc,
     "void" => TokenInner::KeywordVoid,
     "array" => TokenInner::KeywordArray,
+
+    "as" => TokenInner::KeywordAs,
 
     "async" => TokenInner::KeywordAsync,
     "await" => TokenInner::KeywordAwait,

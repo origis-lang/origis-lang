@@ -1,10 +1,11 @@
-use crate::parser::parse::block::Block;
-use crate::parser::parse::type_literal::TypeLiteral;
+use crate::parser::parse::attr::Attribute;
 use smallvec::SmallVec;
 
+use crate::parser::parse::block::Block;
 use crate::parser::parse::error::Error;
 use crate::parser::parse::ident::{TypedIdent, UntypedIdent};
 use crate::parser::parse::module::ModulePath;
+use crate::parser::parse::type_literal::TypeLiteral;
 use crate::parser::parser::{expect_one_token, expect_token, Parser};
 use crate::parser::token::TokenInner;
 
@@ -13,6 +14,7 @@ pub enum Decl<'s> {
     FnDecl(FnDecl<'s>),
     StructDecl(StructDecl<'s>),
     Import(ModulePath<'s>),
+    Attribute(Attribute<'s>),
 }
 
 #[derive(Debug, Clone)]
@@ -54,6 +56,13 @@ impl<'s> Parser<'s> {
                 let path = self.parse_module_path()?;
                 expect_one_token!(self, TokenInner::SymbolSemicolon)?;
                 Ok(Decl::Import(path))
+            },
+            TokenInner::SymbolHash => {
+                let point = self.current_point();
+                self.parse_attr().map(Decl::Attribute).map_err(|err| {
+                    self.back_to(point);
+                    err
+                })
             }
         })
     }

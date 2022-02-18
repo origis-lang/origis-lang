@@ -33,7 +33,8 @@ impl<'s> Parser<'s> {
             return Ok(Stmt::FlowControl(FlowControl::Break(
                 expect_token!(self; {
                     TokenInner::LitInteger(i) => Ok(i)
-                }).unwrap_or(0),
+                })
+                .unwrap_or(0),
             )));
         } else if expect_one_token!(self, TokenInner::KeywordContinue)
             .is_ok()
@@ -41,10 +42,14 @@ impl<'s> Parser<'s> {
             return Ok(Stmt::FlowControl(FlowControl::Continue(
                 expect_token!(self; {
                     TokenInner::LitInteger(i) => Ok(i)
-                }).unwrap_or(0),
+                })
+                .unwrap_or(0),
             )));
-        } else if expect_one_token!(self, TokenInner::KeywordUnreachable)
-            .is_ok()
+        } else if expect_one_token!(
+            self,
+            TokenInner::KeywordUnreachable
+        )
+        .is_ok()
         {
             return Ok(Stmt::Unreachable);
         }

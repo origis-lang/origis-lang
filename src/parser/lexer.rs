@@ -187,26 +187,61 @@ impl<'s> Lexer<'s> {
         let start = self.current_pos();
 
         if let Some(ch) = self.next_char() {
-            let c = if ch == '\'' { '\x00' } else { ch };
+            let mut c = if ch == '\'' { '\x00' } else { ch };
 
-            return if let Some('\'') = self.peek_char() {
-                self.next_char();
-                let end = self.current_pos();
-                Token::new(TokenInner::LitChar(c), start, end)
-            } else {
-                while let Some(ch) = self.peek_char() {
-                    if identifier_boundary(ch) {
-                        break;
-                    } else {
+            if c == '\\' {
+                match self.peek_char() {
+                    Some('0') => {
+                        c = '\0';
                         self.next_char();
                     }
+                    Some('n') => {
+                        c = '\n';
+                        self.next_char();
+                    }
+                    Some('t') => {
+                        c = '\t';
+                        self.next_char();
+                    }
+                    Some('r') => {
+                        c = '\r';
+                        self.next_char();
+                    }
+                    Some('\'') => {
+                        c = '\'';
+                        self.next_char();
+                    }
+                    Some('\\') => {
+                        c = '\\';
+                        self.next_char();
+                    }
+                    _ => {}
                 }
-                let end = self.current_pos();
-                Token::new(
-                    TokenInner::Mark(&self.source[start + 1..=end]),
-                    start,
-                    end,
-                )
+            }
+            return match self.peek_char() {
+                Some('\'') => {
+                    self.next_char();
+
+                    let end = self.current_pos();
+                    Token::new(TokenInner::LitChar(c), start, end)
+                }
+                _ => {
+                    while let Some(ch) = self.peek_char() {
+                        if identifier_boundary(ch) {
+                            break;
+                        } else {
+                            self.next_char();
+                        }
+                    }
+                    let end = self.current_pos();
+                    Token::new(
+                        TokenInner::Mark(
+                            &self.source[start + 1..=end],
+                        ),
+                        start,
+                        end,
+                    )
+                }
             };
         }
 

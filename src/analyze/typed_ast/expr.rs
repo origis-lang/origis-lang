@@ -6,6 +6,7 @@ use compact_str::CompactStr;
 #[derive(Debug, Clone)]
 pub enum Expr {
     Literal(LiteralExpr),
+    Convert(Box<Expr>, Type),
     Ident(Value),
     CallFunc {
         name: Ident,
@@ -40,6 +41,7 @@ impl Typed for Expr {
             Expr::Literal(lit) => lit.return_type(),
             Expr::Ident(val) => val.ty.clone(),
             Expr::CallFunc { ret_ty, .. } => ret_ty.clone(),
+            Expr::Convert(_, ty) => ty.clone(),
             Expr::Block(block) => block.return_type(),
             Expr::Loop(block) => block.return_type(),
             Expr::If { body, .. } => body.return_type(),

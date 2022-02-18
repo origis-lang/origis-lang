@@ -3,6 +3,7 @@ use smallvec::SmallVec;
 
 use crate::parser::parse::error::Error;
 use crate::parser::parse::ident::UntypedIdent;
+use crate::parser::parse::type_literal::TypeLiteral;
 use crate::parser::parser::{expect_one_token, expect_token, Parser};
 use crate::parser::token::{Token, TokenInner};
 
@@ -10,6 +11,7 @@ use crate::parser::token::{Token, TokenInner};
 pub enum Expr<'s> {
     Literal(LiteralExpr<'s>),
     Ident(UntypedIdent<'s>),
+    Convert(Box<Expr<'s>>, TypeLiteral<'s>),
     CallFunc {
         name: UntypedIdent<'s>,
         args: SmallVec<[Box<Expr<'s>>; 3]>,
@@ -67,7 +69,13 @@ pub fn op_precedence(op: TokenInner) -> Option<u8> {
 
 impl<'s> Parser<'s> {
     pub fn parse_expr(&self) -> Result<Expr<'s>, Error<'s>> {
-        self.parse_binary_expr(1)
+        let expr = self.parse_binary_expr(1)?;
+        if let TokenInner::KeywordAs = self.peek_token().inner {
+            self.next_token();
+            Ok(Expr::Convert(box expr, self.parse_type()?))
+        } else {
+            Ok(expr)
+        }
     }
 
     pub fn parse_unary_expr(&self) -> Result<Expr<'s>, Error<'s>> {

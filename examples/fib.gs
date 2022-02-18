@@ -1,4 +1,6 @@
-fn fib_recursion(n: int) int {
+use std::mem::page_size;
+
+pub fn fib_recursion(n: int) int {
     if n <= 1 {
     	1
     } else {
@@ -6,7 +8,7 @@ fn fib_recursion(n: int) int {
     }
 }
 
-fn fib_loop(n: int) int {
+pub fn fib_loop(n: int) int {
     i = 0;
     n0 = 1;
     n1 = 1;
