@@ -1,13 +1,13 @@
-use compact_str::CompactStr;
+use compact_str::CompactString;
 use std::borrow::Borrow;
 use std::ops::Deref;
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
-pub struct Ident(pub CompactStr);
+pub struct Ident(pub CompactString);
 
 impl<T> From<T> for Ident
 where
-    T: Into<CompactStr>,
+    T: Into<CompactString>,
 {
     fn from(s: T) -> Self {
         Ident(s.into())
@@ -15,7 +15,7 @@ where
 }
 
 impl Deref for Ident {
-    type Target = CompactStr;
+    type Target = CompactString;
 
     fn deref(&self) -> &Self::Target {
         &self.0

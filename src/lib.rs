@@ -18,7 +18,7 @@ macro_rules! fn_args {
         {
             let mut _map = fnv::FnvHashMap::default();
             $(
-                _map.insert(compact_str::CompactStr::from($k), $crate::interpreter::Value::from($v));
+                _map.insert(compact_str::CompactString::from($k), $crate::interpreter::Value::from($v));
             )*
             _map
         }

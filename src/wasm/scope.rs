@@ -1,6 +1,6 @@
 use crate::analyze::typed_ast::{FuncType, Type};
 use ahash::AHashMap;
-use compact_str::CompactStr;
+use compact_str::CompactString;
 
 #[derive(Debug, Clone)]
 pub enum Symbol {
@@ -11,12 +11,12 @@ pub enum Symbol {
 #[derive(Debug, Clone)]
 pub enum Scope {
     Global {
-        symbols: AHashMap<CompactStr, Symbol>,
+        symbols: AHashMap<CompactString, Symbol>,
         func_idx: u32,
         local_idx: u32,
     },
     Local {
-        symbols: AHashMap<CompactStr, Symbol>,
+        symbols: AHashMap<CompactString, Symbol>,
         local_idx: u32,
         if_depth: u32,
     },
@@ -37,7 +37,7 @@ impl Scope {
         .ok_or_else(|| anyhow::anyhow!("Symbol {} not found", name))
     }
 
-    pub fn set_symbol(&mut self, name: CompactStr, ty: Type) -> u32 {
+    pub fn set_symbol(&mut self, name: CompactString, ty: Type) -> u32 {
         match self {
             Scope::Global {
                 symbols,

@@ -1,4 +1,4 @@
-use compact_str::CompactStr;
+use compact_str::CompactString;
 use smallvec::SmallVec;
 
 use crate::analyze::typed_ast::{Block, FuncType, Ident, Type};
@@ -6,7 +6,7 @@ use crate::analyze::typed_ast::{Block, FuncType, Ident, Type};
 #[derive(Debug, Clone)]
 pub enum Decl {
     FnDecl(FnDecl),
-    Import(CompactStr, Box<Decl>),
+    Import(CompactString, Box<Decl>),
 }
 
 #[derive(Debug, Clone)]
