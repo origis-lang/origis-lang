@@ -7,7 +7,7 @@ edition = "2021"
 
 [dependencies]
 fnv = "1.0.7"
-compact_str = "0.2.0"
+compact_str = "0.4"
 thiserror = "1.0"
 smallvec = { version = "1.7.0", features = ["union", "const_generics", "const_new"] }
 itertools = "0.10.3"

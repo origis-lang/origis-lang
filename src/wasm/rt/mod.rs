@@ -2,7 +2,7 @@ use std::io::{Read, Write};
 
 use ahash::AHashMap;
 use cfg_if::cfg_if;
-use compact_str::CompactStr;
+use compact_str::CompactString;
 use wasmtime::{
     AsContext, AsContextMut, Caller, Config, Engine, Extern,
     Instance, Linker, Memory, MemoryType, Module, OptLevel, Store,
@@ -16,7 +16,7 @@ mod context;
 pub struct Runtime {
     engine: Engine,
     store: Store<Context>,
-    modules: AHashMap<CompactStr, Module>,
+    modules: AHashMap<CompactString, Module>,
     linker: Linker<Context>,
 }
 
@@ -46,7 +46,7 @@ impl Runtime {
 
     pub fn compile(
         &mut self,
-        name: CompactStr,
+        name: CompactString,
         binary: &[u8],
     ) -> anyhow::Result<()> {
         self.modules

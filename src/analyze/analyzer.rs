@@ -4,7 +4,7 @@ use std::path::Path;
 use std::rc::Rc;
 
 use ahash::AHashMap;
-use compact_str::CompactStr;
+use compact_str::CompactString;
 use smallvec::SmallVec;
 
 use crate::analyze::scope::{Scope, ScopeStack};
@@ -14,7 +14,7 @@ use crate::analyze::typed_ast::{
 };
 use crate::parser::{parse, Parser};
 
-pub type Imports = Rc<RefCell<AHashMap<CompactStr, Module>>>;
+pub type Imports = Rc<RefCell<AHashMap<CompactString, Module>>>;
 
 pub struct Analyzer {
     source: String,
@@ -123,7 +123,7 @@ impl Analyzer {
                 todo!()
             }
             parse::decl::Decl::Import(mut path) => {
-                let name: CompactStr = path
+                let name: CompactString = path
                     .segment
                     .pop()
                     .ok_or_else(|| {
@@ -135,7 +135,7 @@ impl Analyzer {
                     .segment
                     .into_iter()
                     .map(|id| id.to_str().into())
-                    .collect::<SmallVec<[CompactStr; 3]>>();
+                    .collect::<SmallVec<[CompactString; 3]>>();
                 let path = if path.is_empty() {
                     name.clone()
                 } else {
@@ -456,11 +456,11 @@ where
 }
 
 trait ExpectLiteral {
-    fn expect_str(self) -> anyhow::Result<CompactStr>;
+    fn expect_str(self) -> anyhow::Result<CompactString>;
 }
 
 impl ExpectLiteral for Option<parse::expr::LiteralExpr<'_>> {
-    fn expect_str(self) -> anyhow::Result<CompactStr> {
+    fn expect_str(self) -> anyhow::Result<CompactString> {
         match self.ok_or_else(|| {
             anyhow::anyhow!("expected a literal str but None")
         })? {

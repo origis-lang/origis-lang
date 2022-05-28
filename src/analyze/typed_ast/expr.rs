@@ -1,7 +1,7 @@
 use crate::analyze::analyzer::Typed;
 use crate::analyze::typed_ast::Op;
 use crate::analyze::typed_ast::{Block, Ident, Type, Value};
-use compact_str::CompactStr;
+use compact_str::CompactString;
 
 #[derive(Debug, Clone)]
 pub enum Expr {
@@ -29,7 +29,7 @@ pub enum Expr {
 #[derive(Debug, Clone)]
 pub enum LiteralExpr {
     Integer(i64),
-    String(CompactStr),
+    String(CompactString),
     Float(f64),
     Bool(bool),
     Char(char),
